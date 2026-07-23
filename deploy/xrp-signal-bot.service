@@ -1,0 +1,18 @@
+[Unit]
+Description=XRP Signal Telegram Bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Ubuntu image -> user "ubuntu"; Oracle Linux image -> change to "opc" and fix the paths.
+User=ubuntu
+WorkingDirectory=/home/ubuntu/xrp-signal-bot
+ExecStart=/usr/bin/python3 /home/ubuntu/xrp-signal-bot/bot.py
+Restart=always
+RestartSec=10
+# Restart even if it exits cleanly; keep it always alive.
+StartLimitIntervalSec=0
+
+[Install]
+WantedBy=multi-user.target

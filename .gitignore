@@ -1,0 +1,17 @@
+# Secrets & personal data — never commit these
+config.py
+data/state.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.env
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
