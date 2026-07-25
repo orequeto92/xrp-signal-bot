@@ -2,10 +2,16 @@ name: XRP Opportunity Alerts
 
 on:
   schedule:
-    # Every ~20 min, only during 07:00-24:00 Medellin time (UTC-5) = UTC 12-23 and 0-4.
-    # Minutes offset (7/27/47) avoids the top-of-hour rush when GitHub delays jobs most.
-    - cron: "7,27,47 0-4,12-23 * * *"
+    # Every 5 min (GitHub's minimum), only during 07:00-24:00 Medellin time
+    # (UTC-5) = UTC 12-23 and 0-4. Public repos get unlimited free minutes.
+    # GitHub often delays scheduled runs, so treat the cadence as best-effort.
+    - cron: "*/5 0-4,12-23 * * *"
   workflow_dispatch: {}   # lets you trigger a run manually from the Actions tab
+
+# Don't let a slow run overlap the next one (they share Telegram's update queue).
+concurrency:
+  group: xrp-alerts
+  cancel-in-progress: false
 
 jobs:
   check:
@@ -17,13 +23,17 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Restore alert state (anti-spam memory between runs)
+      # Rolling key: unique per run so the updated state is always saved,
+      # restore-keys pulls the most recent previous state.
+      - name: Restore state (balance, trade log, anti-spam memory)
         uses: actions/cache@v4
         with:
           path: .cache
-          key: xrp-alert-state-v1
+          key: xrp-state-${{ github.run_id }}
+          restore-keys: |
+            xrp-state-
 
-      - name: Check for a trade opportunity
+      - name: Answer commands and check for opportunities
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}

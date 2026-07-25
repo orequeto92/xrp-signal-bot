@@ -8,6 +8,9 @@ data and proposes; you execute manually on your exchange.
 
 Run:  python bot.py     (needs config.py — copy config.example.py and fill it in)
 Stdlib only. Long-polling against the Telegram Bot API.
+
+Replies are instant while this process runs. For answers with the PC off, the
+GitHub Actions workflow polls commands on a schedule (see .github/workflows/).
 """
 import sys, os, json, time, urllib.request, urllib.parse
 
@@ -17,7 +20,7 @@ try:
 except Exception:
     sys.exit("Missing config.py — copy config.example.py to config.py and fill it in.")
 
-from engine import signal, bitget
+from engine import signal, commands
 from engine.format import describe as _describe
 
 API = "https://api.telegram.org/bot%s/" % config.TELEGRAM_TOKEN
@@ -52,94 +55,6 @@ def send(chat_id, text):
     api_call("sendMessage", {"chat_id": chat_id, "text": text})
 
 
-# ---------- formatting ----------
-def price_of():
-    try:
-        return bitget.futures_info(config.SYMBOL).get("lastPrice")
-    except Exception:
-        return None
-
-
-def fmt_balance(s):
-    px = price_of()
-    bal = s["balance_coins"]
-    usd = (bal * px) if px else None
-    line = "Saldo: %.4f %s" % (bal, config.SYMBOL.replace("USDT", ""))
-    if usd:
-        line += "  (~$%.2f)" % usd
-    return line
-
-
-def cmd_help():
-    return ("XRP Signal Bot — comandos:\n"
-            "/oportunidades  setup segun las reglas (o no-trade)\n"
-            "/saldo          ver saldo actual\n"
-            "/saldo 13.75    fijar saldo (interes compuesto)\n"
-            "/registrar +0.34  sumar P&L de un trade (en la moneda) y guardarlo\n"
-            "/estado         estadisticas y crecimiento\n"
-            "/alertas        zonas clave para alertas de precio\n\n"
-            "AVISO: el bot NO opera. Propone; tu ejecutas en el exchange. "
-            "Material educativo, no asesoria financiera.")
-
-
-def describe(d):
-    return _describe(d, config.SYMBOL, config.TRADE_PAIR, config.RISK_PCT)
-
-
-def cmd_oportunidades(s):
-    d = signal.evaluate(config.SYMBOL, s["balance_coins"], config)
-    if d.get("decision") == "ERROR":
-        return "No pude analizar: %s" % d.get("reason")
-    return describe(d)
-
-
-def cmd_saldo(s, arg):
-    if arg:
-        try:
-            s["balance_coins"] = float(arg.replace(",", "."))
-            save_state(s)
-            return "Saldo actualizado.\n" + fmt_balance(s)
-        except ValueError:
-            return "Uso: /saldo 13.75"
-    return fmt_balance(s)
-
-
-def cmd_registrar(s, arg):
-    try:
-        pnl = float(arg.replace("+", "").replace(",", "."))
-    except (ValueError, AttributeError):
-        return "Uso: /registrar +0.34   (P&L en la moneda; usa - para perdidas)"
-    s["balance_coins"] = round(s["balance_coins"] + pnl, 8)
-    s.setdefault("trades", []).append(
-        {"ts": int(time.time()), "pnl_coins": pnl, "balance_after": s["balance_coins"]})
-    save_state(s)
-    return "Registrado P&L %+.4f.\n%s\nTrades: %d" % (pnl, fmt_balance(s), len(s["trades"]))
-
-
-def cmd_estado(s):
-    tr = s.get("trades", [])
-    wins = sum(1 for t in tr if t["pnl_coins"] > 0)
-    losses = sum(1 for t in tr if t["pnl_coins"] < 0)
-    pnl = sum(t["pnl_coins"] for t in tr)
-    init = s.get("initial_coins") or s["balance_coins"]
-    growth = (s["balance_coins"] / init - 1) * 100 if init else 0
-    wr = (wins / (wins + losses) * 100) if (wins + losses) else 0
-    return ("%s\nInicial: %.4f | crecimiento: %+.1f%%\n"
-            "Trades: %d (W %d / L %d) | acierto %.0f%%\nP&L acumulado: %+.4f" %
-            (fmt_balance(s), init, growth, len(tr), wins, losses, wr, pnl))
-
-
-def cmd_alertas():
-    z = signal.key_zones(config.SYMBOL)
-    if not z:
-        return "No pude leer zonas."
-    L = ["Zonas para alertas en %s (precio $%.4f):" % (config.TRADE_PAIR, z["price"])]
-    for lv, tag in z["levels"]:
-        L.append("  %.4f  %s" % (lv, tag))
-    L.append("La alerta es aviso para MIRAR: cuando salte, pide /oportunidades.")
-    return "\n".join(L)
-
-
 # ---------- proactive alerts ----------
 def proactive_check(state):
     """Scan the market; push ONE alert when a fresh high-conviction setup appears."""
@@ -159,32 +74,13 @@ def proactive_check(state):
     sig = ("%s-%s-%d" % (d.get("side"), d.get("grade"), d.get("score"))) if actionable else None
     # anti-spam: only send when the actionable signature is new
     if sig and sig != state.get("last_alert_sig"):
-        msg = "🔔 OPORTUNIDAD en %s\n\n%s" % (config.TRADE_PAIR, describe(d))
+        msg = "🔔 OPORTUNIDAD en %s\n\n%s" % (
+            config.TRADE_PAIR, _describe(d, config.SYMBOL, config.TRADE_PAIR, config.RISK_PCT))
         for chat in config.ALLOWED_CHAT_IDS:
             send(chat, msg)
     if state.get("last_alert_sig") != sig:
         state["last_alert_sig"] = sig
         save_state(state)
-
-
-# ---------- dispatch ----------
-def handle(chat_id, text, state):
-    parts = text.strip().split(maxsplit=1)
-    cmd = parts[0].lower().lstrip("/").split("@")[0]
-    arg = parts[1].strip() if len(parts) > 1 else ""
-    if cmd in ("start", "help"):
-        return cmd_help()
-    if cmd in ("oportunidades", "op"):
-        return cmd_oportunidades(state)
-    if cmd == "saldo":
-        return cmd_saldo(state, arg)
-    if cmd == "registrar":
-        return cmd_registrar(state, arg)
-    if cmd == "estado":
-        return cmd_estado(state)
-    if cmd == "alertas":
-        return cmd_alertas()
-    return "Comando no reconocido. /help para ver los comandos."
 
 
 def main():
@@ -219,7 +115,9 @@ def main():
                 continue                       # ignore everyone but the owner
             state = load_state()
             try:
-                reply = handle(chat_id, msg["text"], state)
+                reply, changed = commands.handle(msg["text"], state, config)
+                if changed:
+                    save_state(state)
             except Exception as e:
                 reply = "Error procesando el comando: %s" % e
             send(chat_id, reply)

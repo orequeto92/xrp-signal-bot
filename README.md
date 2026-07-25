@@ -57,9 +57,10 @@ Requires **Python 3.8+** (standard library only — no `pip install` needed).
 Two ways to get alerts without keeping your PC on:
 
 - **GitHub Actions (recommended, no server, no card needed)** — a scheduled workflow
-  checks the market every ~20 min and pushes a Telegram message only when a fresh
-  high-conviction setup appears. Interactive commands (`/oportunidades`, `/saldo`...)
-  still require running `bot.py` locally when you want them. See
+  both **answers your commands** and pushes alerts when a fresh high-conviction setup
+  appears, with your PC off. It runs every 5 minutes, so replies are **not instant**:
+  a command sent now is answered on the next run (typically a few minutes, sometimes
+  longer — GitHub delays scheduled jobs under load). See
   **[.github/workflows/alerts.yml](.github/workflows/alerts.yml)** and the setup below.
 - **A small always-on VM** — runs the *full* interactive bot (commands + alerts) around
   the clock. See **[deploy/DEPLOY.md](deploy/DEPLOY.md)** for a free Oracle Cloud VM
@@ -73,15 +74,25 @@ Two ways to get alerts without keeping your PC on:
    - `TELEGRAM_TOKEN` — your bot token from BotFather
    - `TELEGRAM_CHAT_ID` — your numeric Telegram id (from @userinfobot)
    - `BALANCE_COINS` — your margin balance (e.g. `13.37`), used for position sizing in alerts
-3. That's it — the workflow runs automatically on its schedule (every ~20 min, only
+3. Message your bot **`/start`** once in Telegram. A bot cannot message you until you
+   have opened a conversation with it — skipping this makes the workflow fail with
+   HTTP 400.
+4. That's it — the workflow runs automatically on its schedule (every 5 min, only
    during the configured daytime hours). To test it right away instead of waiting:
    **Actions tab → "XRP Opportunity Alerts" → Run workflow**.
-4. Check the run's log to confirm it worked ("Alert sent: ..." or "No new alert...").
+5. Check the run's log to confirm it worked ("Answered: ...", "Alert sent: ..." or
+   "No new alert...").
 
 Notes:
 - Public repos get **unlimited free Actions minutes** — this costs nothing to run.
+- **Replies are delayed by design.** Each run answers whatever commands are queued;
+  GitHub's minimum schedule is 5 minutes and runs are often delayed further. Run
+  `bot.py` locally when you want instant answers.
+- Balance/trade state lives in the Actions cache and is **best-effort**: if the cache
+  is evicted (7 days unused), the balance falls back to the `BALANCE_COINS` secret.
+  For a permanent change, update that secret too.
 - GitHub **disables scheduled workflows after 60 days of repo inactivity** — push any
-  commit (or just re-enable it from the Actions tab) to keep it alive if that happens.
+  commit (or re-enable it from the Actions tab) to keep it alive.
 - The schedule is UTC-based; edit the `cron:` line in the workflow file to change hours.
 
 ## Data source
