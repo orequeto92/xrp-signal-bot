@@ -11,7 +11,7 @@ Reads secrets from environment variables (set as GitHub Actions repo secrets):
 State (the last alert's signature, to avoid re-alerting the same setup) is
 kept in a small JSON file restored/saved by actions/cache between runs.
 """
-import sys, os, json, urllib.request, urllib.parse
+import sys, os, json, urllib.request, urllib.parse, urllib.error
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from engine import signal
@@ -60,7 +60,14 @@ def send_telegram(text):
     url = "https://api.telegram.org/bot%s/sendMessage" % TOKEN
     data = urllib.parse.urlencode({"chat_id": CHAT_ID, "text": text}).encode()
     req = urllib.request.Request(url, data=data, headers={"User-Agent": "xrp-signal-bot"})
-    urllib.request.urlopen(req, timeout=30).read()
+    try:
+        urllib.request.urlopen(req, timeout=30).read()
+    except urllib.error.HTTPError as e:
+        # Surface Telegram's actual error reason (e.g. chat not found, bot blocked,
+        # user never messaged the bot) instead of a bare "HTTP 400".
+        body = e.read().decode(errors="replace")
+        print("Telegram API rejected the message:", body)
+        raise
 
 
 def main():
