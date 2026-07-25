@@ -1,6 +1,7 @@
 # Secrets & personal data — never commit these
 config.py
 data/state.json
+.cache/
 
 # Python
 __pycache__/

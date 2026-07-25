@@ -1,0 +1,31 @@
+name: XRP Opportunity Alerts
+
+on:
+  schedule:
+    # Every ~20 min, only during 07:00-24:00 Medellin time (UTC-5) = UTC 12-23 and 0-4.
+    # Minutes offset (7/27/47) avoids the top-of-hour rush when GitHub delays jobs most.
+    - cron: "7,27,47 0-4,12-23 * * *"
+  workflow_dispatch: {}   # lets you trigger a run manually from the Actions tab
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Restore alert state (anti-spam memory between runs)
+        uses: actions/cache@v4
+        with:
+          path: .cache
+          key: xrp-alert-state-v1
+
+      - name: Check for a trade opportunity
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          BALANCE_COINS: ${{ secrets.BALANCE_COINS }}
+        run: python scripts/gh_action_check.py

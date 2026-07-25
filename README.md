@@ -54,10 +54,35 @@ Requires **Python 3.8+** (standard library only — no `pip install` needed).
 
 ### Run it 24/7 (without keeping your PC on)
 
-To have it answer around the clock, deploy it on a small always-on host. See
-**[deploy/DEPLOY.md](deploy/DEPLOY.md)** for a step-by-step guide to a **free** Oracle
-Cloud Always Free VM running the bot as an auto-restarting `systemd` service. The same
-service file works on any Linux VPS.
+Two ways to get alerts without keeping your PC on:
+
+- **GitHub Actions (recommended, no server, no card needed)** — a scheduled workflow
+  checks the market every ~20 min and pushes a Telegram message only when a fresh
+  high-conviction setup appears. Interactive commands (`/oportunidades`, `/saldo`...)
+  still require running `bot.py` locally when you want them. See
+  **[.github/workflows/alerts.yml](.github/workflows/alerts.yml)** and the setup below.
+- **A small always-on VM** — runs the *full* interactive bot (commands + alerts) around
+  the clock. See **[deploy/DEPLOY.md](deploy/DEPLOY.md)** for a free Oracle Cloud VM
+  guide (needs a cloud account); the same `systemd` service file works on any Linux VPS.
+
+#### Setting up the GitHub Actions alerts
+
+1. Fork or push this repo to your own GitHub account.
+2. In your repo: **Settings → Secrets and variables → Actions → New repository secret**.
+   Add three secrets:
+   - `TELEGRAM_TOKEN` — your bot token from BotFather
+   - `TELEGRAM_CHAT_ID` — your numeric Telegram id (from @userinfobot)
+   - `BALANCE_COINS` — your margin balance (e.g. `13.37`), used for position sizing in alerts
+3. That's it — the workflow runs automatically on its schedule (every ~20 min, only
+   during the configured daytime hours). To test it right away instead of waiting:
+   **Actions tab → "XRP Opportunity Alerts" → Run workflow**.
+4. Check the run's log to confirm it worked ("Alert sent: ..." or "No new alert...").
+
+Notes:
+- Public repos get **unlimited free Actions minutes** — this costs nothing to run.
+- GitHub **disables scheduled workflows after 60 days of repo inactivity** — push any
+  commit (or just re-enable it from the Actions tab) to keep it alive if that happens.
+- The schedule is UTC-based; edit the `cron:` line in the workflow file to change hours.
 
 ## Data source
 
