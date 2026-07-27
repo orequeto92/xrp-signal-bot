@@ -57,22 +57,41 @@ def _director(btc):
     return ""
 
 
-def _structural_sl(price, side, m15, m1h, sl_min=1.5, sl_max=4.0):
-    atr = m15.get("atr") or 0
+ATR_STOP_MULT = 2.5     # a stop must clear this many 4H ATRs, or noise takes it out
+
+
+def _structural_sl(price, side, m15, m1h, m4, sl_min=1.5, sl_max=4.0):
+    """Structural stop, floored by volatility. Returns (sl, ok, reason).
+
+    A stop that sits closer than ~2x the 4H ATR gets taken out by ordinary noise
+    rather than by the trade being wrong, so the structural level is widened to
+    that floor. If honouring the floor would need a stop wider than sl_max, the
+    setup is rejected instead of quietly using a stop that cannot hold.
+    """
+    atr15 = m15.get("atr") or 0
     if side == "long":
         cands = [s for s in (m1h.get("supports") or []) + (m15.get("supports") or []) if s < price]
         raw = max(cands) if cands else price * (1 - sl_min / 100)
-        sl = raw - 0.3 * atr
+        sl = raw - 0.3 * atr15
     else:
         cands = [r for r in (m1h.get("resistances") or []) + (m15.get("resistances") or []) if r > price]
         raw = min(cands) if cands else price * (1 + sl_min / 100)
-        sl = raw + 0.3 * atr
+        sl = raw + 0.3 * atr15
+
+    # volatility floor: the stop must be at least ATR_STOP_MULT x the 4H ATR away
+    atr4_pct = m4.get("atr_pct") or 0
+    floor_pct = max(sl_min, atr4_pct * ATR_STOP_MULT)
     dist_pct = abs(price - sl) / price * 100
-    if dist_pct < sl_min:
-        sl = price * (1 - sl_min / 100) if side == "long" else price * (1 + sl_min / 100)
+
+    if dist_pct < floor_pct:
+        if floor_pct > sl_max:
+            return None, False, ("volatilidad alta (ATR 4H %.2f%%): un stop sano exigiria "
+                                 "%.2f%% (> maximo %.1f%%)." % (atr4_pct, floor_pct, sl_max))
+        dist_pct = floor_pct
+        sl = price * (1 - floor_pct / 100) if side == "long" else price * (1 + floor_pct / 100)
     elif dist_pct > sl_max:
         sl = price * (1 - sl_max / 100) if side == "long" else price * (1 + sl_max / 100)
-    return sl
+    return sl, True, ""
 
 
 def _space(levels, price, min_gap=0.008, n=2):
@@ -158,7 +177,11 @@ def evaluate(symbol, balance_coins, cfg):
 
     # --- build the trade ---
     entry = price
-    sl = _structural_sl(price, side, m15, m1h, cfg.SL_MIN_PCT, cfg.SL_MAX_PCT)
+    sl, sl_ok, sl_reason = _structural_sl(price, side, m15, m1h, m4,
+                                          cfg.SL_MIN_PCT, cfg.SL_MAX_PCT)
+    if not sl_ok:
+        res.update(decision="NO-TRADE", side=side, reason=sl_reason)
+        return res
     contract = None
     try:
         contract = bitget.contract(symbol)
