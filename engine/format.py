@@ -26,8 +26,10 @@ def describe(d, symbol, trade_pair, risk_pct):
                  (d["entry"], d["sl"], d["tp1"], d["tp2"]))
         L.append("Cantidad %.4g %s | notional $%.2f | margen $%.2f | %dx" %
                  (sz["qty"], base, sz["notional"], sz["margin"], sz["leverage"]))
-        L.append("Riesgo $%.2f (%.1f%%) | liquidacion ~%.1f%% vs SL %.2f%%" %
-                 (sz["risk_usd"], risk_pct, sz["liq_pct"], sz["dist_pct"]))
+        usado = sz.get("risk_pct", risk_pct)
+        extra = "  <- riesgo ampliado por score %d" % d["score"] if usado > risk_pct else ""
+        L.append("Riesgo $%.2f (%.1f%%) | liquidacion ~%.1f%% vs SL %.2f%%%s" %
+                 (sz["risk_usd"], usado, sz["liq_pct"], sz["dist_pct"], extra))
         for w in sz.get("warnings", []):
             L.append("! " + w)
         if d["side"] == "long":

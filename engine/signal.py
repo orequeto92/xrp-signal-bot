@@ -187,10 +187,6 @@ def evaluate(symbol, balance_coins, cfg):
         contract = bitget.contract(symbol)
     except Exception:
         pass
-    bal_usd = balance_coins * price
-    sz = size_trade(entry, sl, side, bal_usd, cfg.RISK_PCT, cfg.LEV_MAX,
-                    contract, cfg.SL_MIN_PCT, cfg.SL_MAX_PCT)
-
     # --- conviction score (base 5) ---
     score = 5
     if director == side:
@@ -210,6 +206,17 @@ def evaluate(symbol, balance_coins, cfg):
         score -= 1
     score = max(1, min(10, score))
     grade = "A+" if score >= 8 else "A" if score >= 6 else "B"
+
+    # Conviction-based risk: only the very best setups (9-10) get the larger size.
+    # Everything else stays at the base risk. Never scale beyond RISK_PCT_HIGH.
+    risk_pct = cfg.RISK_PCT
+    if score >= getattr(cfg, "SCORE_RISK_ALTO", 9):
+        risk_pct = getattr(cfg, "RISK_PCT_HIGH", cfg.RISK_PCT)
+
+    bal_usd = balance_coins * price
+    sz = size_trade(entry, sl, side, bal_usd, risk_pct, cfg.LEV_MAX,
+                    contract, cfg.SL_MIN_PCT, cfg.SL_MAX_PCT)
+    sz["risk_pct"] = risk_pct
 
     res.update(decision="TRADE", side=side, entry=entry, sl=round(sl, 6),
                tp1=sz.get("tp1"), tp2=sz.get("tp2"), score=score, grade=grade,

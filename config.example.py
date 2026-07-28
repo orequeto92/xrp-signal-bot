@@ -14,6 +14,8 @@ DIRECTOR_SYMBOL = "BTCUSDT" # market "director" whose bias filters the alt
 # --- Capital & risk (the balance is your margin, in the base coin) ---
 BALANCE_COINS = 100.0       # initial balance in the base coin (e.g. XRP). Updatable via /saldo
 RISK_PCT = 2.0              # % of balance risked per trade (the SL fixes the real risk)
+RISK_PCT_HIGH = 3.0         # only for top-conviction setups (score >= SCORE_RISK_ALTO)
+SCORE_RISK_ALTO = 9         # conviction score from which RISK_PCT_HIGH applies
 LEV_MAX = 10               # leverage cap (keep low for coin-margined longs)
 SL_MIN_PCT = 1.5           # tighter than this = noise stops you out
 SL_MAX_PCT = 4.0           # wider than this = position too small
