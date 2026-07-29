@@ -152,7 +152,9 @@ def evaluate(symbol, balance_coins, cfg):
     res = {"symbol": symbol, "price": price, "gauge": color, "director": director or "neutral",
            "oi": sym.get("oi"), "funding": sym.get("funding"),
            "rsi": {"4H": m4.get("rsi"), "1H": m1h.get("rsi"), "15m": m15.get("rsi")},
-           "zona15": m15.get("zona"), "zona4": m4.get("zona")}
+           "zona15": m15.get("zona"), "zona4": m4.get("zona"),
+           "zona1d": m1d.get("zona"), "pos1d": m1d.get("pos_pct"),
+           "divs1d": m1d.get("divergences") or []}
 
     # --- gates ---
     if bias4 not in CLEAR:
