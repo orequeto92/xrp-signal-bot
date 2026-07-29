@@ -62,7 +62,7 @@ DAILY_BLOCK_LOW = 30    # below this % of the daily range, shorts are refused
 DAILY_BLOCK_HIGH = 70   # above this % of the daily range, longs are refused
 
 
-def _structural_sl(price, side, m15, m1h, m4, sl_min=1.5, sl_max=4.0):
+def _structural_sl(price, side, m15, m1h, m4, sl_min=1.5, sl_max=4.0, atr_mult=None):
     """Structural stop, floored by volatility. Returns (sl, ok, reason).
 
     A stop that sits closer than ~2x the 4H ATR gets taken out by ordinary noise
@@ -82,7 +82,7 @@ def _structural_sl(price, side, m15, m1h, m4, sl_min=1.5, sl_max=4.0):
 
     # volatility floor: the stop must be at least ATR_STOP_MULT x the 4H ATR away
     atr4_pct = m4.get("atr_pct") or 0
-    floor_pct = max(sl_min, atr4_pct * ATR_STOP_MULT)
+    floor_pct = max(sl_min, atr4_pct * (ATR_STOP_MULT if atr_mult is None else atr_mult))
     dist_pct = abs(price - sl) / price * 100
 
     if dist_pct < floor_pct:
@@ -182,13 +182,15 @@ def evaluate(symbol, balance_coins, cfg):
     # Shorting what is cheap on the 1D (or buying what is expensive) means fighting
     # the larger structure just because a lower timeframe bounced.
     pos1d = m1d.get("pos_pct")
+    block_low = getattr(cfg, "DAILY_BLOCK_LOW", DAILY_BLOCK_LOW)
+    block_high = getattr(cfg, "DAILY_BLOCK_HIGH", DAILY_BLOCK_HIGH)
     if pos1d is not None:
-        if side == "short" and pos1d <= DAILY_BLOCK_LOW:
+        if side == "short" and pos1d <= block_low:
             res.update(decision="NO-TRADE", side=side,
                        reason=("el 1D esta en descuento profundo (%.0f%% del rango): no se "
                                "shortea lo que esta barato en el marco grande." % pos1d))
             return res
-        if side == "long" and pos1d >= DAILY_BLOCK_HIGH:
+        if side == "long" and pos1d >= block_high:
             res.update(decision="NO-TRADE", side=side,
                        reason=("el 1D esta en premium profundo (%.0f%% del rango): no se compra "
                                "lo que esta caro en el marco grande." % pos1d))
@@ -197,7 +199,8 @@ def evaluate(symbol, balance_coins, cfg):
     # --- build the trade ---
     entry = price
     sl, sl_ok, sl_reason = _structural_sl(price, side, m15, m1h, m4,
-                                          cfg.SL_MIN_PCT, cfg.SL_MAX_PCT)
+                                          cfg.SL_MIN_PCT, cfg.SL_MAX_PCT,
+                                          getattr(cfg, "ATR_STOP_MULT", None))
     if not sl_ok:
         res.update(decision="NO-TRADE", side=side, reason=sl_reason)
         return res

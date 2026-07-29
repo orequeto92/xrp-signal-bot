@@ -19,29 +19,24 @@ evicted, the balance falls back to the BALANCE_COINS secret.
 import sys, os, json, time, urllib.request, urllib.parse, urllib.error
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from engine import signal, commands
+from engine import signal, commands, params
 from engine.format import describe
 
-# --- config: secrets required, the rest has sensible defaults ---
+# --- secrets come from the environment; strategy params from params.json ---
 TOKEN = os.environ.get("TELEGRAM_TOKEN")
 CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 BALANCE_COINS = float(os.environ.get("BALANCE_COINS", "0") or 0)
-
-ALERT_MIN_SCORE = int(os.environ.get("ALERT_MIN_SCORE", "7"))
 
 STATE_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                           ".cache", "state.json")
 
 
 class Cfg:
-    """Stand-in for config.py, built from env vars, for engine.signal/commands."""
-    SYMBOL = os.environ.get("SYMBOL", "XRPUSDT")
-    TRADE_PAIR = os.environ.get("TRADE_PAIR", "XRPUSD")
-    DIRECTOR_SYMBOL = os.environ.get("DIRECTOR_SYMBOL", "BTCUSDT")
-    RISK_PCT = float(os.environ.get("RISK_PCT", "2.0"))
-    LEV_MAX = int(os.environ.get("LEV_MAX", "10"))
-    SL_MIN_PCT = float(os.environ.get("SL_MIN_PCT", "1.5"))
-    SL_MAX_PCT = float(os.environ.get("SL_MAX_PCT", "4.0"))
+    """Stand-in for config.py for engine.signal/commands. Filled from params.json."""
+
+
+params.apply_to(Cfg)
+ALERT_MIN_SCORE = Cfg.ALERT_MIN_SCORE
 
 
 def load_state():

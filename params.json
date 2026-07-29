@@ -1,0 +1,35 @@
+{
+  "_comment": "Fuente unica de verdad de los parametros de estrategia. La leen el bot (local y GitHub Actions) y la app movil. NO poner aqui secretos (token, chat id) ni el saldo: este repo es publico.",
+  "_version": 1,
+
+  "mercado": {
+    "SYMBOL": "XRPUSDT",
+    "TRADE_PAIR": "XRPUSD",
+    "DIRECTOR_SYMBOL": "BTCUSDT"
+  },
+
+  "riesgo": {
+    "RISK_PCT": 2.0,
+    "RISK_PCT_HIGH": 3.0,
+    "SCORE_RISK_ALTO": 9,
+    "LEV_MAX": 10
+  },
+
+  "stops": {
+    "SL_MIN_PCT": 1.5,
+    "SL_MAX_PCT": 4.0,
+    "ATR_STOP_MULT": 2.5
+  },
+
+  "contexto_diario": {
+    "DAILY_BLOCK_LOW": 30,
+    "DAILY_BLOCK_HIGH": 70
+  },
+
+  "alertas": {
+    "PROACTIVE_ALERTS": true,
+    "ALERT_MIN_SCORE": 7,
+    "CHECK_INTERVAL_MIN": 20,
+    "ALERT_HOURS_UTC": [12, 5]
+  }
+}
