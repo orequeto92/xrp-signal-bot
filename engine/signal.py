@@ -58,6 +58,8 @@ def _director(btc):
 
 
 ATR_STOP_MULT = 2.5     # a stop must clear this many 4H ATRs, or noise takes it out
+DAILY_BLOCK_LOW = 30    # below this % of the daily range, shorts are refused
+DAILY_BLOCK_HIGH = 70   # above this % of the daily range, longs are refused
 
 
 def _structural_sl(price, side, m15, m1h, m4, sl_min=1.5, sl_max=4.0):
@@ -143,6 +145,7 @@ def evaluate(symbol, balance_coins, cfg):
 
     color, gscore = _gauge(btc)
     director = _director(btc)
+    m1d = sym["tf"].get("1D", {})
     m4, m1h, m15 = sym["tf"].get("4H", {}), sym["tf"].get("1H", {}), sym["tf"].get("15m", {})
     bias4 = m4.get("bias")
 
@@ -175,6 +178,22 @@ def evaluate(symbol, balance_coins, cfg):
                    reason="tendencia bajista pero en discount/RSI bajo: esperar rebote a premium.")
         return res
 
+    # Daily-context gate: never trade against where price sits in the DAILY range.
+    # Shorting what is cheap on the 1D (or buying what is expensive) means fighting
+    # the larger structure just because a lower timeframe bounced.
+    pos1d = m1d.get("pos_pct")
+    if pos1d is not None:
+        if side == "short" and pos1d <= DAILY_BLOCK_LOW:
+            res.update(decision="NO-TRADE", side=side,
+                       reason=("el 1D esta en descuento profundo (%.0f%% del rango): no se "
+                               "shortea lo que esta barato en el marco grande." % pos1d))
+            return res
+        if side == "long" and pos1d >= DAILY_BLOCK_HIGH:
+            res.update(decision="NO-TRADE", side=side,
+                       reason=("el 1D esta en premium profundo (%.0f%% del rango): no se compra "
+                               "lo que esta caro en el marco grande." % pos1d))
+            return res
+
     # --- build the trade ---
     entry = price
     sl, sl_ok, sl_reason = _structural_sl(price, side, m15, m1h, m4,
@@ -199,9 +218,16 @@ def evaluate(symbol, balance_coins, cfg):
         score += 1
     if side == "long":
         score -= 1                                   # coin-margined long = double risk
-    divs = " ".join(m15.get("divergences") or [])
+    # ta.compute reports divergences uppercase ("ALCISTA (...)"), so normalise before
+    # matching — comparing against lowercase silently disabled these penalties before.
+    divs = " ".join(m15.get("divergences") or []).lower()
     if (side == "long" and "bajista" in divs) or (side == "short" and "alcista" in divs):
         score -= 1
+    # A divergence on the DAILY is a far stronger warning than one on 15m: it says the
+    # bigger move is losing steam. Weigh it accordingly.
+    divs1d = " ".join(m1d.get("divergences") or []).lower()
+    if (side == "long" and "bajista" in divs1d) or (side == "short" and "alcista" in divs1d):
+        score -= 2
     if color == "AMARILLO":
         score -= 1
     score = max(1, min(10, score))
